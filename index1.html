@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Expense Tracker with Charts</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f7fc; }
+    header { background: #4CAF50; color: white; padding: 15px; text-align: center; }
+    nav { background: #333; display: flex; justify-content: center; }
+    nav button { background: none; border: none; color: white; padding: 14px 20px; cursor: pointer; font-size: 16px; }
+    nav button:hover { background: #575757; }
+    .container { max-width: 700px; margin: 20px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    h2 { margin-top: 0; }
+    input, select, button { padding: 10px; margin: 5px 0; width: 100%; border: 1px solid #ddd; border-radius: 5px; }
+    button.add { background: #4CAF50; color: white; border: none; }
+    button.add:hover { background: #45a049; }
+    ul { list-style: none; padding: 0; }
+    ul li { background: #f1f1f1; margin: 5px 0; padding: 10px; border-radius: 5px; }
+    .summary { margin-top: 20px; padding: 15px; background: #eee; border-radius: 5px; text-align: center; font-weight: bold; }
+    #loginPage { display: flex; height: 100vh; justify-content: center; align-items: center; background: #4CAF50; }
+    #loginBox { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); text-align: center; width: 300px; }
+    #loginBox h2 { margin-bottom: 20px; }
+    #app { display: none; }
+    canvas { margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<!-- Login Page -->
+<div id="loginPage">
+  <div id="loginBox">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Enter Username">
+    <input type="password" id="password" placeholder="Enter Password">
+    <button onclick="login()">Login</button>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <header>
+    <h1>Expense Tracker</h1>
+  </header>
+
+  <nav>
+    <button onclick="showSection('home')">Home</button>
+    <button onclick="showSection('expenses')">Expenses</button>
+    <button onclick="showSection('income')">Income</button>
+    <button onclick="logout()">Logout</button>
+  </nav>
+
+  <!-- Dashboard -->
+  <div class="container" id="home">
+    <h2>Dashboard</h2>
+    <p>Welcome! Use the menu above to track your income and expenses.</p>
+    <div class="summary">
+      Balance: ₹<span id="balance">0</span>
+    </div>
+    <canvas id="pieChart"></canvas>
+    <canvas id="barChart"></canvas>
+  </div>
+
+  <!-- Expenses -->
+  <div class="container" id="expenses" style="display:none;">
+    <h2>Add Expense</h2>
+    <input id="expenseDesc" placeholder="Expense Description">
+    <input id="expenseAmt" type="number" placeholder="Amount">
+    <button class="add" onclick="addExpense()">Add Expense</button>
+    <h3>Expense List</h3>
+    <ul id="expenseList"></ul>
+  </div>
+
+  <!-- Income -->
+  <div class="container" id="income" style="display:none;">
+    <h2>Add Income</h2>
+    <input id="incomeDesc" placeholder="Income Source">
+    <input id="incomeAmt" type="number" placeholder="Amount">
+    <button class="add" onclick="addIncome()">Add Income</button>
+    <h3>Income List</h3>
+    <ul id="incomeList"></ul>
+  </div>
+</div>
+
+<script>
+  let expenses = [];
+  let income = [];
+  let pieChart, barChart;
+
+  // ================== LOGIN ==================
+  function login() {
+    const user = document.getElementById("username").value;
+    const pass = document.getElementById("password").value;
+
+    if (!user || !pass) {
+      alert("Enter valid username and password");
+      return;
+    }
+
+    fetch('api/login.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        document.getElementById("loginPage").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        fetchData(); // load expenses and income from database
+      } else {
+        alert(data.message);
+      }
+    })
+    .catch(err => console.error(err));
+  }
+
+  function logout() {
+    document.getElementById("loginPage").style.display = "flex";
+    document.getElementById("app").style.display = "none";
+    expenses = [];
+    income = [];
+  }
+
+  function showSection(section) {
+    document.getElementById("home").style.display = "none";
+    document.getElementById("expenses").style.display = "none";
+    document.getElementById("income").style.display = "none";
+    document.getElementById(section).style.display = "block";
+    if(section === "home") updateCharts();
+  }
+
+  // ================== FETCH DATA ==================
+  function fetchData() {
+    fetch('api/expenses.php')
+      .then(res => res.json())
+      .then(data => { expenses = data; updateExpenses(); updateBalance(); updateCharts(); });
+
+    fetch('api/income.php')
+      .then(res => res.json())
+      .then(data => { income = data; updateIncome(); updateBalance(); updateCharts(); });
+  }
+
+  // ================== ADD EXPENSE/INCOME ==================
+  function addExpense() {
+    const desc = document.getElementById("expenseDesc").value;
+    const amt = parseFloat(document.getElementById("expenseAmt").value);
+    if (!desc || !amt) return;
+
+    fetch('api/expenses.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: desc, amount: amt })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        fetchData();
+        document.getElementById("expenseDesc").value = "";
+        document.getElementById("expenseAmt").value = "";
+      } else {
+        alert(data.message);
+      }
+    });
+  }
+
+  function addIncome() {
+    const desc = document.getElementById("incomeDesc").value;
+    const amt = parseFloat(document.getElementById("incomeAmt").value);
+    if (!desc || !amt) return;
+
+    fetch('api/income.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: desc, amount: amt })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        fetchData();
+        document.getElementById("incomeDesc").value = "";
+        document.getElementById("incomeAmt").value = "";
+      } else {
+        alert(data.message);
+      }
+    });
+  }
+
+  // ================== UPDATE DOM ==================
+  function updateExpenses() {
+    let list = document.getElementById("expenseList");
+    list.innerHTML = "";
+    expenses.forEach(e => {
+      let li = document.createElement("li");
+      li.textContent = `${e.description}: ₹${e.amount}`;
+      list.appendChild(li);
+    });
+  }
+
+  function updateIncome() {
+    let list = document.getElementById("incomeList");
+    list.innerHTML = "";
+    income.forEach(i => {
+      let li = document.createElement("li");
+      li.textContent = `${i.description}: ₹${i.amount}`;
+      list.appendChild(li);
+    });
+  }
+
+  function updateBalance() {
+    let totalIncome = income.reduce((sum, i) => sum + parseFloat(i.amount), 0);
+    let totalExpense = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    document.getElementById("balance").textContent = totalIncome - totalExpense;
+  }
+
+  // ================== CHARTS ==================
+  function renderCharts() {
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    pieChart = new Chart(pieCtx, {
+      type: 'pie',
+      data: {
+        labels: ['Income', 'Expenses'],
+        datasets: [{
+          data: [0, 0],
+          backgroundColor: ['#4CAF50', '#f44336']
+        }]
+      }
+    });
+
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    barChart = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Income', data: [], backgroundColor: '#4CAF50' },
+          { label: 'Expenses', data: [], backgroundColor: '#f44336' }
+        ]
+      },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+  }
+
+  function updateCharts() {
+    let totalIncome = income.reduce((sum, i) => sum + parseFloat(i.amount), 0);
+    let totalExpense = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+
+    pieChart.data.datasets[0].data = [totalIncome, totalExpense];
+    pieChart.update();
+
+    let labels = [...new Set([...income.map(i => i.description), ...expenses.map(e => e.description)])];
+    let incomeData = labels.map(label => {
+      let entry = income.find(i => i.description === label);
+      return entry ? parseFloat(entry.amount) : 0;
+    });
+    let expenseData = labels.map(label => {
+      let entry = expenses.find(e => e.description === label);
+      return entry ? parseFloat(entry.amount) : 0;
+    });
+
+    barChart.data.labels = labels;
+    barChart.data.datasets[0].data = incomeData;
+    barChart.data.datasets[1].data = expenseData;
+    barChart.update();
+  }
+
+  renderCharts(); // initialize charts
+</script>
+
+</body>
+</html>
