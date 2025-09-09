@@ -147,21 +147,23 @@
     const amt = parseFloat(document.getElementById("expenseAmt").value);
     if (!desc || !amt) return;
 
-    fetch('api/expenses.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: desc, amount: amt })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        fetchData();
-        document.getElementById("expenseDesc").value = "";
-        document.getElementById("expenseAmt").value = "";
-      } else {
-        alert(data.message);
-      }
-    });
+    fetch('api/expenses.php')
+  .then(async res => {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.error("Invalid JSON:", text);
+      return [];
+    }
+  })
+  .then(data => {
+    expenses = data;
+    updateExpenses();
+    updateBalance();
+    updateCharts();
+  });
+
   }
 
   function addIncome() {
