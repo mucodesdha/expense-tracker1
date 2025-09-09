@@ -3,7 +3,10 @@ header('Content-Type: application/json'); // ensures proper JSON response
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method Not Allowed']);
+    session_start();
+$_SESSION['user_id'] = $row['id'];
+echo json_encode(['success' => true, 'message' => 'Login successful', 'user' => ['id' => $row['id'], 'username' => $row['username']]]);
+
     exit;
 }
 
